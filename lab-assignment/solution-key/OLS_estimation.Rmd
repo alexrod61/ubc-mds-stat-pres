@@ -1,0 +1,524 @@
+---
+title: "Ordinary Least-Squares Estimation"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```
+BEGIN ASSIGNMENT
+requirements: requirements.R
+files:
+      - data
+generate:
+    show_stdout: true
+    show_hidden: true
+environment: environment.yml
+export_cell: false
+```
+
+# Pre-Requisite Knowledge
+
+This lab assignment includes practical questions involving estimation in simple linear regression via ordinary least-squares. All its content is in a frequentist framework. Furthermore, this assignment would be the introductory practicum in the course **DSCI 561 (Regression I)**.
+
+Besides the sample lecture, students specifically need to be familiar with the following courses and topics:
+
+-   **DSCI 551 (Descriptive Statistics and Probability for Data Science)**. Random variables, expected values (and their properties), and normality.
+-   **DSCI 552 (Statistical Inference and Computation I)**. Estimators, sampling distributions, hypothesis testing, and confidence intervals.
+-   **DSCI 531 (Data Visualization I)**. Data visualization via the package `ggplot2`.
+
+# Lab Assignment Settings
+
+This assignment has the following characteristics:
+
+-   It is expected to be submitted as an `R` markdown along with its corresponding PDF file.
+-   The handout incorporates auto-graded items for instantaneous feedback. These items are built using [Otter Grader](https://otter-grader.readthedocs.io/en/latest/).
+-   Moreover, the practicum is designed to be submitted to the online grading platform [Gradescope](https://www.gradescope.com/).
+
+# Specific Learning Objectives
+
+By the end of this lab assignment, students are expected to attain the following:
+
+-   Define linear regression models.
+-   Estimate their terms using `R` via a sample and interpret them.
+
+# Lab Assignment
+
+This lab assignment will allow you to define and conceptualize the simple regression model via a practical case. Moreover, you will get familiar with the process of a typical statistical model involving (but not limited to!) a main statistical inquiry, exploratory data analysis (EDA), mathematical modelling, estimation, and data storytelling.
+
+## Setup
+
+To solve this assignment, you need to load the packages below. If you fail to load any of them, you can install them and rerun the cell.
+
+```{r load libraries, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(broom)
+library(tree)
+library(digest)
+library(testthat)
+```
+
+## Rubric
+
+This assignment is worth **17 points in total** plus 2 bonus points if you solve the optional question. Most of the questions are **auto-graded**. **Thus, you will need to pass all the corresponding auto-grading tests to get their full marks.** The rest of the points belong to **reasoning**.
+
+## The Facebook Dataset
+
+It is time to explore another engaging dataset, such as the Spotify data we covered in our lecture. This time we will work with Facebook data. In their work related to data mining for predicting performance metrics of posts on Facebook pages linked to brands, [Moro et al. (2016)](https://gw2jh3xr2c.search.serialssolutions.com/log?L=GW2JH3XR2C&D=ADALY&J=JOUROFBUSRE&P=Link&PT=EZProxy&A=Predicting+social+media+performance+metrics+and+evaluation+of+the+impact+on+brand+building%3A+A+data+mining+approach&H=d8c19bb47c&U=https%3A%2F%2Fezproxy.library.ubc.ca%2Flogin%3Furl%3Dhttps%3A%2F%2Fwww.sciencedirect.com%2Fscience%2Flink%3Fref_val_fmt%3Dinfo%3Aofi%2Ffmt%3Akev%3Amtx%3Ajournal%26svc_val_fmt%3Dinfo%3Aofi%2Ffmt%3Akev%3Amtx%3Asch_srv%26rfr_dat%3Dsaltver%3A1%26rfr_dat%3Dorigin%3ASERIALSSOL%26ctx_enc%3Dinfo%3Aofi%2Fenc%3AUTF-8%26ctx_ver%3DZ39.88-2004%26rft_id%3Dinfo%3Adoi%2F10.1016%2Fj.jbusres.2016.02.010) provide a dataset related to post metrics on Facebook user engagement. This engagement data comes from 2014 on a Facebook page of a famous cosmetics brand. The original dataset has 500 observations, each belonging to specific classes of page posts. You can find the raw dataset in [data.world](https://data.world/uci/facebook-metrics/workspace/project-summary?agentid=uci&datasetid=facebook-metrics). The `CSV` file to be used in this assignment is a modified version of this dataset with only 491 observations. 
+
+Moreover, it is essential to clarify that the raw dataset has 17 different continuous and discrete variables. Nevertheless, for this assignment, let us narrow them down to the following:
+
+1. The continuous variable `total_engagement_percentage` is a **key variable** for any brand with a Facebook page. It tells us how engaged the Facebook users are with the company's posts, **regardless of whether they previously liked their Facebook page or not**. *The larger the percentage, the better the total engagement*. We compute it as follows:
+
+$$\texttt{total\_engagement\_percentage} = \frac{\text{Lifetime Engaged Users}}{\text{Lifetime Post Total Reach}} \times 100\%$$
+
+- **Lifetime Post Total Reach:** The number of overall *Facebook unique users* who *saw* the post.
+- **Lifetime Engaged Users:** The number of overall *Facebook unique users* who *saw and clicked* on the post. This count is a subset of **Lifetime Post Total Reach**.
+
+2. The continuous `share_percentage` is the percentage that the number of *shares* represents from the sum of *likes*, *comments*, and *shares* in each post. It is computed as follows:
+
+$$\texttt{share\_percentage} = \frac{\text{Number of Shares}}{\text{Total Post Interactions}} \times 100\% $$
+
+-   **Total Post Interactions:** The sum of *likes*, *comments*, and *shares* in a given post.
+-   **Number of Shares:** The number of *shares* in a given post. This count is a subset of *Total Post Interactions*.
+
+### 1. Main Statistical Inquiry
+
+rubric={reasoning:2}
+
+Suppose you are the sales manager of the cosmetics brand; you are interested in the following:
+
+> Is the **mean** total engagement percentage dependent on the share percentage on our Facebook page? If so, by how much?
+
+Suppose you want to use simple linear regression (SLR) to answer this inquiry. Hence, answer the following:
+
+1. **In one sentence**, what would be the model's response?
+
+<!-- BEGIN SOLUTION -->
+
+> *The model's response would be total engagement percentage.*
+
+**Reasoning rubric for feedback:**
+
+- Grant one mark for the correct variable.
+
+<!-- END SOLUTION -->
+
+2. **In one sentence**, what would be the model's regressor?
+
+<!-- BEGIN SOLUTION -->
+
+> *The model's regressor would be share percentage.*
+
+**Reasoning rubric for feedback:**
+
+- Grant one mark for the correct variable.
+
+<!-- END SOLUTION -->
+
+### 2. Loading Data
+
+Now, let us load the data.
+
+```{r message=FALSE}
+facebook_data <- read_csv("data/facebook_data.csv")
+head(facebook_data)
+```
+
+### 3. Exploratory Data Analysis (EDA)
+
+rubric={autograde:3,reasoning:2}
+
+Using the variables of interest stored in `facebook_data`, create the **proper visualization** with the regressor and response on the $x$ and $y$-axes, respectively. Add appropriate axes labels and titles. Store the plot in the variable `facebook_plot`.
+
+Furthermore, **comment on your findings in one to two sentences**.
+
+<!-- BEGIN SOLUTION -->
+
+> *From our scatterplot, we see a positive relationship between page engagement and share percentages. However, graphically speaking, data points are pretty scattered.*
+
+**Reasoning rubric for feedback:**
+
+- Grant full marks if they state the positive relationship along with the scattered points.
+- Penalize one mark if they do not state the scattered points.
+- Penalize one mark if they do not state the positive relationship.
+
+<!-- END SOLUTION -->
+
+```
+BEGIN QUESTION
+name: Q3
+points:
+  - 0
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+  - 0.5
+```
+
+```{r fig.width=7, fig.height=4}
+facebook_plot <- NULL
+
+# BEGIN SOLUTION
+facebook_plot <- ggplot(
+  facebook_data,
+  aes(
+    x = share_percentage,
+    y = total_engagement_percentage,
+  )
+) +
+  geom_point() +
+  labs(
+    title = "Page Engagement Percentage Versus Share Percentage",
+    x = "Share Percentage (%)",
+    y = "Page Engagement Percentage (%)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", size = 8),
+    axis.title = element_text(face = "bold", size = 8)
+  )
+# END SOLUTION
+
+facebook_plot
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: the plot should be assigned to an object called facebook_plot
+" # END TEST CONFIG
+testthat::expect_true(exists("facebook_plot"))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: the variable used for the x-axis is incorrect
+" # END TEST CONFIG
+properties <- facebook_plot$mapping
+testthat::expect_true("share_percentage" == rlang::get_expr(properties$x))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: the variable used for the y-axis is incorrect
+" # END TEST CONFIG
+properties <- facebook_plot$mapping
+testthat::expect_true("total_engagement_percentage" == rlang::get_expr(properties$y))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: the plot type is incorrect
+" # END TEST CONFIG
+testthat::expect_true("GeomPoint" %in% class(facebook_plot$layers[[1]]$geom))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: you should use a human-readable name for the x-axis label
+" # END TEST CONFIG
+testthat::expect_false((facebook_plot$labels$x) == "share_percentage")
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: you should use a human-readable name for the y-axis label
+" # END TEST CONFIG
+testthat::expect_false((facebook_plot$labels$y) == "total_engagement_percentage")
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: your plot should have a title
+" # END TEST CONFIG
+testthat::expect_false(is.null(facebook_plot$labels$title))
+```
+
+### 4. Data Modelling
+
+Once we have our EDA, let us proceed to the SLR modelling. Our training set (i.e., `facebook_data`) has a size of $n = 491$. For the $i$th observation in our training set ($i = 1, \dots, 491$), the regression equation is the following:
+
+$$\underbrace{Y_i}_\text{Response}  = \underbrace{\beta_0 + \beta_1 X_i}_\text{Systematic Component} + \underbrace{\varepsilon_i}_\text{Random Component}$$
+
+Recall that $X_i$ is the regressor, whereas $\beta_0$ and $\beta_1$ are the unknown regression intercept and coefficient, respectively.
+
+### 5. Estimation
+
+Now, let us start with the model estimation. We will break down this stage into four questions.
+
+#### 5.1
+
+rubric={autograde:2}
+
+As seen during lecture time, we will use ordinary least-squares (OLS) estimation to obtain $\hat{\beta}_0$ and $\hat{\beta}_1$:
+
+$$\hat{\beta}_1 = \frac{\sum_{i = 1}^n (x_i - \bar{x})(y_i - \bar{y})}{\sum_{i = 1}^n (x_i - \bar{x})^2}$$
+
+$$\hat{\beta}_0 = \bar{y} - \hat{\beta}_1 \bar{x}$$
+
+Using the response and regressor from the training set `facebook_data`, compute $\hat{\beta}_0$ and $\hat{\beta}_1$ via the formulas above **by hand**. Bind your results to the **numeric vector-type** variable `beta_0_hat` for $\hat{\beta}_0$ and `beta_1_hat` for $\hat{\beta}_1$.
+
+```
+BEGIN QUESTION
+name: Q5.1
+points: 
+  - 0
+  - 0
+  - 1
+  - 1
+```
+
+```{r}
+
+beta_0_hat <- NULL
+beta_1_hat <- NULL
+
+# BEGIN SOLUTION
+beta_1_hat <- sum((facebook_data$share_percentage -
+  mean(facebook_data$share_percentage)) *
+  (facebook_data$total_engagement_percentage -
+    mean(facebook_data$total_engagement_percentage))) /
+  sum((facebook_data$share_percentage -
+    mean(facebook_data$share_percentage))^2)
+
+beta_0_hat <- mean(facebook_data$total_engagement_percentage) -
+  beta_1_hat * mean(facebook_data$share_percentage)
+# END SOLUTION
+
+beta_0_hat
+beta_1_hat
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: beta_0_hat should be vector and numeric 
+" # END TEST CONFIG
+testthat::expect_true("numeric" %in% class(beta_0_hat))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: beta_1_hat should be vector and numeric 
+" # END TEST CONFIG
+testthat::expect_true("numeric" %in% class(beta_1_hat))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: beta_0_hat computation is wrong
+" # END TEST CONFIG
+testthat::expect_equal(digest(round(beta_0_hat, 2)), "e1901f8dd167541f390c7ba7101a44cd")
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: beta_1_hat computation is wrong
+" # END TEST CONFIG
+testthat::expect_equal(digest(round(beta_1_hat, 2)), "597c0fe04eaee0d9994580e6c92628f6")
+```
+
+#### 5.2
+
+rubric={autograde:2}
+
+Now, using `lm()` with `facebook_data`, estimate a SLR called `facebook_SLR` to help determine the association of share percentage and page engagement percentage.
+
+```
+BEGIN QUESTION
+name: Q5.2
+points: 
+  - 1
+  - 1
+```
+
+```{r}
+facebook_SLR <- NULL
+
+# BEGIN SOLUTION
+facebook_SLR <- lm(total_engagement_percentage ~ share_percentage,
+  data = facebook_data
+)
+# END SOLUTION
+
+facebook_SLR
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: the correct fitting function is not being used
+" # END TEST CONFIG
+testthat::expect_true("lm" %in% class(facebook_SLR))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: check the formula and data arguments in the fitting function
+" # END TEST CONFIG
+testthat::expect_equal(digest(round(sum(facebook_SLR$coefficients), 2)), "a9f0cb4905810fd503591e0deb301798")
+```
+
+#### 5.3
+
+rubric={autograde:1}
+
+Use `tidy()` from the `broom` package to obtain the estimated coefficients of `facebook_SLR`. Bind your results to the variable `tidy_SLR`. Your model estimates have to be equal to the manual computations `beta_0_hat` and `beta_1_hat`.
+
+```
+BEGIN QUESTION
+name: Q5.3
+points: 
+  - 0.5
+  - 0.5
+```
+
+```{r}
+tidy_SLR <- NULL
+
+# BEGIN SOLUTION
+tidy_SLR <- tidy(facebook_SLR)
+# END SOLUTION
+
+tidy_SLR
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: tidy_SLR should be a data frame
+" # END TEST CONFIG
+testthat::expect_true("data.frame" %in% class(tidy_SLR))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: tidy_SLR does not have the right estimates
+" # END TEST CONFIG
+testthat::expect_equal(digest(round(sum(tidy_SLR$estimate), 2)), "a9f0cb4905810fd503591e0deb301798")
+```
+
+#### 5.4
+
+rubric={autograde:1}
+
+Compute the corresponding sum of squared residuals (SSR). You will need to use the training set `facebook_data` along with `beta_0_hat` and `beta_1_hat`.
+
+$$S(\hat{\beta}_0, \hat{\beta}_1) = \sum_{i = 1}^n \big[ y_i - (\hat{\beta}_0 + \hat{\beta}_1 x_i) \big]^2$$
+Bind your results to the **numeric vector-type** variable `SSR_facebook`.
+
+```
+BEGIN QUESTION
+name: Q5.4
+points: 
+  - 0
+  - 1
+```
+
+```{r}
+SSR_facebook <- NULL
+
+# BEGIN SOLUTION
+
+SSR_facebook <- sum((facebook_data$total_engagement_percentage -
+  beta_0_hat -
+  beta_1_hat * facebook_data$share_percentage)^2)
+
+# END SOLUTION
+
+SSR_facebook
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: SSR_facebook should be vector and numeric 
+" # END TEST CONFIG
+testthat::expect_true("numeric" %in% class(SSR_facebook))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: SSR_facebook computation is wrong
+" # END TEST CONFIG
+testthat::expect_equal(digest(round(SSR_facebook, 2)), "447623f72057f1e4ee31f2acb46a5c3a")
+```
+
+#### (Optional) 5.5
+
+rubric={autograde:2}
+
+There is a way to automatically plot the estimated OLS regression line via `ggplot2`. Do it on top of `facebook_scatterplot`. 
+
+```
+BEGIN QUESTION
+name: Q5.5
+points: 
+  - 1
+  - 1
+```
+
+```{r fig.width=7, fig.height=4}
+# BEGIN SOLUTION
+facebook_plot <- facebook_plot +
+  geom_smooth(method = lm, formula = y ~ x, se = FALSE)
+
+# END SOLUTION
+
+facebook_plot
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: geom_smooth is missing
+" # END TEST CONFIG
+testthat::expect_true("GeomSmooth" %in% class(facebook_plot$layers[[2]]$geom))
+```
+
+```{r include=FALSE}
+" # BEGIN TEST CONFIG
+failure_message: incorrect method in geom_smooth
+" # END TEST CONFIG
+properties <- facebook_plot$layers[[2]]
+method <- formals(properties[["stat_params"]][["method"]])[["method"]]
+testthat::expect_equal(digest(tolower(method)), "0ebfb0ddc1a5ced965136ef1538883c6")
+```
+
+### 6. Conclusion
+
+rubric={reasoning:2}
+
+Run the cell below before continuing.
+
+```{r}
+tidy_SLR
+```
+
+Use this output to answer the main statistical inquiry **in one or two sentences**. Recall the following:
+
+> Is the **mean** total engagement percentage dependent on the share percentage on our Facebook page? If so, by how much?
+
+<!-- BEGIN SOLUTION -->
+
+>  *Yes, we estimate that the mean total engagement percentage is linearly dependent on the share percentage via our regression model. Specifically, we estimate that for each 1% increase in share percentage, the mean total engagement percentage increases by 0.31% on our Facebook page.*
+
+**Reasoning rubric for feedback:**
+
+- Grant full marks if they answer both questions correctly.
+- Penalize one mark if they do not mention **estimate**.
+- Penalize one mark if they do not mention **mean**.
+
+<!-- END SOLUTION -->
+
+## Submission
+
+You are done with the assignment. Follow these final instructions:
+
+- Knit the assignment to generate the `PDF` file.
+- Submit both the `Rmd` AND the `PDF` files to Gradescope.
+
+## Reference
+
+Moro, S., Rita, P., & Vala, B. (2016). Predicting social media performance metrics and evaluation of the impact on brand building: A data mining approach. Journal of Business Research, 69(9), 3341-3351.
